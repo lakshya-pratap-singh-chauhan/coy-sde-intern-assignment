@@ -111,39 +111,3 @@ coy-sde-intern-assignment/
 │   └── swipe.test.ts        # Unit tests
 └── public/photos/           # Profile photos (not committed)
 ```
-
-## Testing
-
-```bash
-npm test
-```
-
-The tests use an in-memory database and cover: swiped profiles never return to the feed, the feed never reveals likes, a like matches only when mutual, a pass never matches, duplicate swipes are ignored, invalid input is rejected, and only mutual matches are listed.
-
-## Design
-
-The UI follows the Coy brand: bold black outlines, hard offset shadows, and a playful palette.
-
-| Color | Hex |
-|---|---|
-| Ink | `#17121F` |
-| Pink | `#FF3A7D` |
-| Yellow | `#FFE45C` |
-| Mint | `#BDF2D5` |
-| Lilac | `#D9C8FF` |
-
-## Database
-
-By default the app uses a local SQLite file at `data/coy.db`, created by `npm run seed`. To use a hosted Turso database instead, set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` (see `.env.example`).
-
-## Future Improvements
-
-- Open a match to see the full profile and start a chat
-- Real authentication and per-user swipe history
-- Undo the last swipe
-- Photo galleries with multiple images per profile
-
-## Author
-
-**Lakshya Pratap Singh Chauhan**
-GitHub: [@lakshya-pratap-singh-chauhan](https://github.com/lakshya-pratap-singh-chauhan)
