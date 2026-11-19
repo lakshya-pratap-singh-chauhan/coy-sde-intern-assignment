@@ -1,36 +1,149 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Coy SDE Intern Assignment: Discover Tab
+
+> A swipe-based Discover tab for Coy. Likes stay secret until they are mutual.
+
+## Overview
+
+This project is my submission for the Coy SDE intern assignment (Part B). It adds a **Discover** tab, in the style of Bumble and Tinder, next to a placeholder **Home** tab and a **Matches** tab. It is a standalone app: one fixed logged-in user, no authentication.
+
+The core promise of Coy is privacy, so the app never reveals who liked the user unless the like is mutual.
+
+## Features
+
+- **Swipe cards**: one profile at a time. Drag the card on mobile, or use the Pass and Like buttons (and the Left and Right arrow keys) on desktop.
+- **Clear swipe feedback**: a light green tint with a LIKE stamp when swiping right, a light red tint with a NOPE stamp when swiping left.
+- **Mutual matching**: an "It's a match!" screen appears only when both people liked each other.
+- **Matches tab**: lists all mutual matches, newest first.
+- **No repeats**: a swiped profile never appears again, even after a page reload.
+- **Gender preference**: choose Women, Men or Everyone to filter the feed.
+- **Empty state**: a friendly "You're all caught up" screen, with a Start over button for demos.
+- **Persistence**: swipes and matches are stored in the database and survive reloads.
+- **Home tab**: an intentional "We're working on it" placeholder, as in the brief.
+
+## Tech Stack
+
+| Area | Technology |
+|---|---|
+| Framework | Next.js 14 (App Router), React, TypeScript |
+| Styling | Tailwind CSS v3 |
+| Animation | Framer Motion |
+| Database | SQLite via @libsql/client (local file, or Turso when configured) |
+| Testing | Vitest |
+| Tooling | ESLint, tsx |
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18.17 or newer
+- npm
+
+### Installation
 
 ```bash
+git clone https://github.com/lakshya-pratap-singh-chauhan/coy-sde-intern-assignment.git
+cd coy-sde-intern-assignment
+npm install
+npm run seed
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). For the best view, use your browser's device toolbar at about 390 px wide.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Photos
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Profile photos are not included in this repo. To add your own, put portrait images (about 800 by 1000 pixels) named `p01.jpg` to `p32.jpg` in `public/photos/`. The number matches the profile id. Missing photos show a silhouette placeholder. All profiles are fictional and for demonstration only.
 
-## Learn More
+### Scripts
 
-To learn more about Next.js, take a look at the following resources:
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start the development server |
+| `npm run build` | Create a production build |
+| `npm run start` | Run the production build |
+| `npm run seed` | Create the tables and load 32 mock profiles |
+| `npm test` | Run the unit tests |
+| `npm run lint` | Run ESLint |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Privacy Design
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+"Never reveal who has liked the user unless it is mutual" is the core rule, and it is enforced on the server:
 
-## Deploy on Vercel
+- The seed data keeps the secret likes in a separate table, `likes_me`, which no feed or matches query ever reads.
+- `GET /api/feed` returns public profile fields only. There is no `likedYou` flag and the order never favors people who liked the user.
+- Only `POST /api/swipe` decides matches. It returns `match: true` only when the user likes someone who already liked the user.
+- Duplicate swipes are blocked by a unique constraint, so a profile can never be swiped twice.
+- A unit test checks that the feed output contains no field that reveals likes.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## API
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/feed?show=girl\|boy\|all` | Profiles the user has not swiped on yet |
+| `POST` | `/api/swipe` | Body: `{ "profileId": number, "direction": "like" \| "pass" }`. Returns `{ "match": boolean, "profile"?: Profile }` |
+| `GET` | `/api/matches` | The user's mutual matches, newest first |
+| `POST` | `/api/reset` | Clears swipes and matches for demos. Never touches profiles or secret likes |
+
+## Demo Guide
+
+The seed data includes 12 profiles that already liked the user, so matches can happen in a demo. Swiping right on any of these creates a match: **Aanya, Meera, Riya, Tanvi, Simran, Neha, Rohan, Arjun, Dev, Reyansh, Nikhil, Manav**. Swiping right on anyone else, or swiping left on anyone, never creates a match.
+
+## Project Structure
+
+```text
+coy-sde-intern-assignment/
+├── scripts/
+│   └── seed.ts              # Creates tables and loads the mock profiles
+├── src/
+│   ├── app/
+│   │   ├── api/             # feed, swipe, matches and reset routes
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── components/          # SwipeCard, DiscoverTab, MatchesTab, TabBar, ...
+│   ├── data/
+│   │   └── profiles.ts      # 32 mock profiles (server only)
+│   └── lib/
+│       ├── db.ts            # Database client and schema
+│       ├── swipe.ts         # All swipe and match logic
+│       ├── api.ts           # Client fetch helpers
+│       └── types.ts
+├── tests/
+│   └── swipe.test.ts        # Unit tests
+└── public/photos/           # Profile photos (not committed)
+```
+
+## Testing
+
+```bash
+npm test
+```
+
+The tests use an in-memory database and cover: swiped profiles never return to the feed, the feed never reveals likes, a like matches only when mutual, a pass never matches, duplicate swipes are ignored, invalid input is rejected, and only mutual matches are listed.
+
+## Design
+
+The UI follows the Coy brand: bold black outlines, hard offset shadows, and a playful palette.
+
+| Color | Hex |
+|---|---|
+| Ink | `#17121F` |
+| Pink | `#FF3A7D` |
+| Yellow | `#FFE45C` |
+| Mint | `#BDF2D5` |
+| Lilac | `#D9C8FF` |
+
+## Database
+
+By default the app uses a local SQLite file at `data/coy.db`, created by `npm run seed`. To use a hosted Turso database instead, set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` (see `.env.example`).
+
+## Future Improvements
+
+- Open a match to see the full profile and start a chat
+- Real authentication and per-user swipe history
+- Undo the last swipe
+- Photo galleries with multiple images per profile
+
+## Author
+
+**Lakshya Pratap Singh Chauhan**
+GitHub: [@lakshya-pratap-singh-chauhan](https://github.com/lakshya-pratap-singh-chauhan)
