@@ -43,44 +43,50 @@ export async function getFeed(db: DB, show: Show = 'all'): Promise<Profile[]> {
           ORDER BY ((id * 7) % 32), id`,
     args: show === 'all' ? [] : [show],
   });
-  return rs.rows.map((r) => toProfile(r));
+  return rs.rows.map((r) => toProfile(r as unknown as Row));
 }
 
-export function recordSwipe(db: DB, profileId: number, direction: Direction): SwipeResult {
+export async function recordSwipe(db: DB, profileId: number, direction: Direction): Promise<SwipeResult> {
   if (direction !== 'like' && direction !== 'pass') throw new SwipeError(400, 'Invalid direction');
   if (!Number.isInteger(profileId)) throw new SwipeError(400, 'Invalid profileId');
-  const row = db.prepare(`SELECT ${COLS} FROM profiles WHERE id = ?`).get(profileId) as Row | undefined;
-  if (!row) throw new SwipeError(404, 'Profile not found');
-  const profile = toProfile(row);
 
-  const run = db.transaction((): SwipeResult => {
-    const existing = db.prepare('SELECT 1 FROM swipes WHERE profile_id = ?').get(profileId);
-    if (existing) {
-      const m = db.prepare('SELECT 1 FROM matches WHERE profile_id = ?').get(profileId);
-      return m ? { match: true, profile } : { match: false };
-    }
-    db.prepare('INSERT INTO swipes (profile_id, direction) VALUES (?, ?)').run(profileId, direction);
-    const likedMe = db.prepare('SELECT 1 FROM likes_me WHERE profile_id = ?').get(profileId);
-    if (direction === 'like' && likedMe) {
-      db.prepare('INSERT INTO matches (profile_id) VALUES (?)').run(profileId);
+  const rs = await db.execute({ sql: `SELECT ${COLS} FROM profiles WHERE id = ?`, args: [profileId] });
+  if (rs.rows.length === 0) throw new SwipeError(404, 'Profile not found');
+  const profile = toProfile(rs.rows[0] as unknown as Row);
+
+  // Check for duplicate swipe
+  const dup = await db.execute({ sql: 'SELECT 1 FROM swipes WHERE profile_id = ?', args: [profileId] });
+  if (dup.rows.length > 0) {
+    const m = await db.execute({ sql: 'SELECT 1 FROM matches WHERE profile_id = ?', args: [profileId] });
+    return m.rows.length > 0 ? { match: true, profile } : { match: false };
+  }
+
+  // Record the swipe and optionally create a match — atomically
+  if (direction === 'like') {
+    const likedMe = await db.execute({ sql: 'SELECT 1 FROM likes_me WHERE profile_id = ?', args: [profileId] });
+    if (likedMe.rows.length > 0) {
+      await db.batch([
+        { sql: 'INSERT INTO swipes (profile_id, direction) VALUES (?, ?)', args: [profileId, direction] },
+        { sql: 'INSERT INTO matches (profile_id) VALUES (?)', args: [profileId] },
+      ], 'write');
       return { match: true, profile };
     }
-    return { match: false };
-  });
-
-  return run();
+  }
+  await db.execute({ sql: 'INSERT INTO swipes (profile_id, direction) VALUES (?, ?)', args: [profileId, direction] });
+  return { match: false };
 }
 
-export function getMatches(db: DB): MatchItem[] {
-  const rows = db
-    .prepare(
-      `SELECT p.id, p.name, p.gender, p.age, p.city_or_college, p.bio, p.interests, p.photo_url,
-              m.created_at AS matched_at
-       FROM matches m JOIN profiles p ON p.id = m.profile_id
-       ORDER BY m.created_at DESC, m.rowid DESC`
-    )
-    .all() as (Row & { matched_at: string })[];
-  return rows.map((r) => ({ profile: toProfile(r), matchedAt: r.matched_at }));
+export async function getMatches(db: DB): Promise<MatchItem[]> {
+  const rs = await db.execute(
+    `SELECT p.id, p.name, p.gender, p.age, p.city_or_college, p.bio, p.interests, p.photo_url,
+            m.created_at AS matched_at
+     FROM matches m JOIN profiles p ON p.id = m.profile_id
+     ORDER BY m.created_at DESC, m.rowid DESC`
+  );
+  return rs.rows.map((r) => ({
+    profile: toProfile(r as unknown as Row),
+    matchedAt: String(r.matched_at),
+  }));
 }
 
 export async function resetSwipes(db: DB): Promise<void> {

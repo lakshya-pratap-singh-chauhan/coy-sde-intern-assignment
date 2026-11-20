@@ -11,7 +11,8 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Invalid JSON' }, { status: 400 });
   }
   try {
-    const result = recordSwipe(getDb(), Number(body.profileId), body.direction as 'like' | 'pass');
+    const db = await getDb();
+    const result = await recordSwipe(db, Number(body.profileId), body.direction as 'like' | 'pass');
     return Response.json(result);
   } catch (e) {
     if (e instanceof SwipeError) {

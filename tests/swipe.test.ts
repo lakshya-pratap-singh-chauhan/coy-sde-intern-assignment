@@ -1,24 +1,30 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createDb, type DB } from '../src/lib/db';
+import { createDb, initDb, type DB } from '../src/lib/db';
 import { getFeed, recordSwipe, getMatches, resetSwipes } from '../src/lib/swipe';
 
 let db: DB;
 
-beforeEach(() => {
+beforeEach(async () => {
   db = createDb(':memory:');
-  const ins = db.prepare(
-    `INSERT INTO profiles (id, name, gender, age, city_or_college, bio, interests, photo_url)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  await initDb(db);
+  await db.batch(
+    [
+      ...Array.from({ length: 4 }, (_, i) => ({
+        sql: `INSERT INTO profiles (id, name, gender, age, city_or_college, bio, interests, photo_url)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [i + 1, `P${i + 1}`, (i + 1) % 2 ? 'girl' : 'boy', 20 + (i + 1), 'Delhi', 'bio',
+          JSON.stringify(['a', 'b']), `/photos/p0${i + 1}.jpg`],
+      })),
+      { sql: 'INSERT INTO likes_me (profile_id) VALUES (?)', args: [1] },
+      { sql: 'INSERT INTO likes_me (profile_id) VALUES (?)', args: [3] },
+    ],
+    'write'
   );
-  for (let i = 1; i <= 4; i++) {
-    ins.run(i, `P${i}`, i % 2 ? 'girl' : 'boy', 20 + i, 'Delhi', 'bio', JSON.stringify(['a', 'b']), `/photos/p0${i}.jpg`);
-  }
-  db.prepare('INSERT INTO likes_me (profile_id) VALUES (1), (3)').run();
 });
 
 describe('feed', () => {
   it('never shows a swiped profile again', async () => {
-    recordSwipe(db, 2, 'pass');
+    await recordSwipe(db, 2, 'pass');
     expect((await getFeed(db)).map((p) => p.id)).not.toContain(2);
   });
   it('never reveals who liked the user', async () => {
@@ -38,33 +44,34 @@ describe('feed', () => {
 });
 
 describe('swipe', () => {
-  it('matches on a like when the profile liked me', () => {
-    expect(recordSwipe(db, 1, 'like').match).toBe(true);
+  it('matches on a like when the profile liked me', async () => {
+    expect((await recordSwipe(db, 1, 'like')).match).toBe(true);
   });
-  it('does not match on a like when the profile did not like me', () => {
-    expect(recordSwipe(db, 2, 'like').match).toBe(false);
+  it('does not match on a like when the profile did not like me', async () => {
+    expect((await recordSwipe(db, 2, 'like')).match).toBe(false);
   });
-  it('does not match on a pass', () => {
-    expect(recordSwipe(db, 1, 'pass').match).toBe(false);
-    expect(getMatches(db)).toHaveLength(0);
+  it('does not match on a pass', async () => {
+    expect((await recordSwipe(db, 1, 'pass')).match).toBe(false);
+    expect(await getMatches(db)).toHaveLength(0);
   });
-  it('ignores duplicate swipes', () => {
-    recordSwipe(db, 3, 'like');
-    recordSwipe(db, 3, 'like');
-    expect(db.prepare('SELECT COUNT(*) AS c FROM swipes').get()).toEqual({ c: 1 });
-    expect(getMatches(db)).toHaveLength(1);
+  it('ignores duplicate swipes', async () => {
+    await recordSwipe(db, 3, 'like');
+    await recordSwipe(db, 3, 'like');
+    const countRs = await db.execute('SELECT COUNT(*) AS c FROM swipes');
+    expect(Number(countRs.rows[0].c)).toBe(1);
+    expect(await getMatches(db)).toHaveLength(1);
   });
-  it('rejects bad input', () => {
-    expect(() => recordSwipe(db, 99, 'like')).toThrow();
-    expect(() => recordSwipe(db, 1, 'maybe' as never)).toThrow();
+  it('rejects bad input', async () => {
+    await expect(recordSwipe(db, 99, 'like')).rejects.toThrow();
+    await expect(recordSwipe(db, 1, 'maybe' as never)).rejects.toThrow();
   });
 });
 
 describe('matches', () => {
-  it('returns only mutual matches', () => {
-    recordSwipe(db, 1, 'like');
-    recordSwipe(db, 2, 'like');
-    expect(getMatches(db).map((m) => m.profile.id)).toEqual([1]);
+  it('returns only mutual matches', async () => {
+    await recordSwipe(db, 1, 'like');
+    await recordSwipe(db, 2, 'like');
+    expect((await getMatches(db)).map((m) => m.profile.id)).toEqual([1]);
   });
 });
 

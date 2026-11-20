@@ -44,15 +44,16 @@ The core promise of Coy is privacy, so the app never reveals who liked the user 
 git clone https://github.com/lakshya-pratap-singh-chauhan/coy-sde-intern-assignment.git
 cd coy-sde-intern-assignment
 npm install
-npm run seed
 npm run dev
 ```
+
+The database is created and filled with the 32 demo profiles automatically on first run. `npm run seed` resets the demo data to its initial state.
 
 Open [http://localhost:3000](http://localhost:3000). For the best view, use your browser's device toolbar at about 390 px wide.
 
 ### Photos
 
-Profile photos are not included in this repo. To add your own, put portrait images (about 800 by 1000 pixels) named `p01.jpg` to `p32.jpg` in `public/photos/`. The number matches the profile id. Missing photos show a silhouette placeholder. All profiles are fictional and for demonstration only.
+Sample profile photos are included in `public/photos/` (`p01.jpg` to `p32.jpg`, matching profile ids 1 to 32) so the demo works right after cloning. Names, bios and other details are fictional, and the photos are used for assignment demonstration only. Profiles without a photo file show a silhouette placeholder.
 
 ### Scripts
 

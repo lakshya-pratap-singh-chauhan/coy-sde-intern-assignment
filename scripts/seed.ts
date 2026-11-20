@@ -1,33 +1,18 @@
-import path from 'path';
-import { createDb } from '../src/lib/db';
-import { seedProfiles } from '../src/data/profiles';
+import { config } from 'dotenv';
+config({ path: '.env.local' });
 
-const db = createDb(path.join(process.cwd(), 'data', 'coy.db'));
+import { createDb, initDb } from '../src/lib/db';
+import { seedDatabase } from '../src/lib/seed';
 
-const insertProfile = db.prepare(
-  `INSERT INTO profiles (id, name, gender, age, city_or_college, bio, interests, photo_url)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-);
+async function main() {
+  const url = process.env.TURSO_DATABASE_URL ?? 'file:data/coy.db';
+  const db = createDb(url, process.env.TURSO_AUTH_TOKEN);
+  await initDb(db);
+  await seedDatabase(db);
+  console.log(`Seeded ${url}`);
+}
 
-const insertLike = db.prepare('INSERT INTO likes_me (profile_id) VALUES (?)');
-
-const run = db.transaction(() => {
-  db.exec('DELETE FROM matches; DELETE FROM swipes; DELETE FROM likes_me; DELETE FROM profiles;');
-  for (const p of seedProfiles) {
-    insertProfile.run(
-      p.id,
-      p.name,
-      p.gender,
-      p.age,
-      p.cityOrCollege,
-      p.bio,
-      JSON.stringify(p.interests),
-      p.photoUrl
-    );
-    if (p.likesMe) insertLike.run(p.id);
-  }
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
 });
-
-run();
-
-console.log(`Seeded ${seedProfiles.length} profiles, ${seedProfiles.filter((p) => p.likesMe).length} secret likes.`);
